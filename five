@@ -1,0 +1,334 @@
+import casadi as ca
+import numpy as np
+
+class five_link():
+    def __init__(self):
+        self.opti= ca.Opti()
+
+        #masses
+        self.m1= 0.5
+        self.m2= 0.5
+        self.m3= 0.5
+        self.m4= self.m2
+        self.m5= self.m1
+
+        #lengths
+        self.l1= 0.5
+        self.l2= 0.5
+        self.l3= 0.5
+        self.l4= self.l2
+        self.l5= self.l1
+
+        self.g=-9.81
+        self.T= 0.1
+        self.N= 100
+        self.h= self.T/self.N
+
+        self.initial= [-0.3, 0.7, 0.0, -0.5, -0.3]
+        self.final= self.initial[::-1]
+
+        self.max_tau= 5
+        self.max_angle= np.pi
+
+        self.i1= self.m1*(self.l1**2)/12
+        self.i2= self.m2*(self.l2**2)/12
+        self.i3= self.m3*(self.l3**2)/12
+        self.i4= self.m4*(self.l4**2)/12
+        self.i5= self.m5*(self.l5**2)/12
+
+        self.state=[]
+        self.u=[]
+
+        for i in range(self.N):
+            q=[]
+            tau=[]
+
+            q.append(self.opti.variable(5))
+            q.append(self.opti.variable(5))
+            tau.append(self.opti.variable(4))
+
+            self.state.append(q)
+            self.u.append(tau)
+
+        self.pos = []
+        self.com = []
+        self.ddq = []
+        for i in range(self.N):
+            P, dP, G, dG, ddG, ddq = self.Dynamics(self.state[i], self.u[i])
+            self.pos.append(p)
+            self.com.append(g)
+            self.ddq.append(ddq)
+
+            if i == self.N - 1:
+                self.impactmap = self.heel_strike(self.state[i][0], self.state[i][1], P, G, dG)
+
+
+    def Kinematics(self, q, dq):
+        p1x = ca.MX.sym('p1x', 1)
+        p1y = ca.MX.sym('p1y', 1)
+        p2x = ca.MX.sym('p2x', 1)
+        p2y = ca.MX.sym('p2y', 1)
+        p3x = ca.MX.sym('p3x', 1)
+        p3y = ca.MX.sym('p3y', 1)
+        p4x = ca.MX.sym('p4x', 1)
+        p4y = ca.MX.sym('p4y', 1)
+        p5x = ca.MX.sym('p5x', 1)
+        p5y = ca.MX.sym('p5y', 1)
+
+        g1x = ca.MX.sym('g1x', 1)
+        g1y = ca.MX.sym('g1y', 1)
+        g2x = ca.MX.sym('g2x', 1)
+        g2y = ca.MX.sym('g2y', 1)
+        g3x = ca.MX.sym('g3x', 1)
+        g3y = ca.MX.sym('g3y', 1)
+        g4x = ca.MX.sym('g4x', 1)
+        g4y = ca.MX.sym('g4y', 1)
+        g5x = ca.MX.sym('g5x', 1)
+        g5y = ca.MX.sym('g5y', 1)
+
+        p1x = -self.l1*ca.sin(q[0])
+        p1y = self.l1*ca.cos(q[0])
+        g1x = -self.l1 * ca.sin(q[0]) / 2
+        g1y = self.l1 * ca.cos(q[0]) / 2
+
+        p2x = p1x + (-self.l2*ca.sin(q[1]))
+        p2y = p1y + (self.l2 * ca.cos(q[1]))
+        g2x = p1x + (-self.l2 * ca.sin(q[1])) / 2
+        g2y = p1y + (self.l2 * ca.cos(q[1])) / 2
+
+        p3x = p2x + (self.l3 * ca.sin(q[2]))
+        p3y = p2y + (self.l3 * ca.cos(q[2]))
+        g3x = p2x + (self.l3 * ca.sin(q[2])) / 2
+        g3y = p2y + (self.l3 * ca.cos(q[2])) / 2
+
+        p4x = p2x + (self.l4 * ca.sin(q[3]))
+        p4y = p2y + (-self.l4 * ca.cos(q[3]))
+        g4x = p2x + (self.l4 * ca.sin(q[3])) / 2
+        g4y = p2y + (-self.l4 * ca.cos(q[3])) / 2
+
+        p5x = p4x + (self.l5 * ca.sin(q[4]))
+        p5y = p4y + (-self.l5 * ca.cos(q[4]))
+        g5x = p4x + (self.l5 * ca.sin(q[4])) / 2
+        g5y = p4y + (-self.l5 * ca.cos(q[4])) / 2
+
+        dp1x, dp1y = ca.jtimes(p1x, q, dq), ca.jtimes(p1y, q, dq)
+        dp2x, dp2y = ca.jtimes(p2x, q, dq), ca.jtimes(p2y, q, dq)
+        dp3x, dp3y = ca.jtimes(p3x, q, dq), ca.jtimes(p3y, q, dq)
+        dp4x, dp4y = ca.jtimes(p4x, q, dq), ca.jtimes(p4y, q, dq)
+        dp5x, dp5y = ca.jtimes(p5x, q, dq), ca.jtimes(p5y, q, dq)
+
+        dg1x, dg1y = ca.jtimes(g1x, q, dq), ca.jtimes(g1y, q, dq)
+        dg2x, dg2y = ca.jtimes(g2x, q, dq), ca.jtimes(g2y, q, dq)
+        dg3x, dg3y = ca.jtimes(g3x, q, dq), ca.jtimes(g3y, q, dq)
+        dg4x, dg4y = ca.jtimes(g4x, q, dq), ca.jtimes(g4y, q, dq)
+        dg5x, dg5y = ca.jtimes(g5x, q, dq), ca.jtimes(g5y, q, dq)
+
+        ddg1x, ddg1y = ca.jtimes(g1x, dq, dq), ca.jtimes(g1y, dq, dq)
+        ddg2x, ddg2y = ca.jtimes(g2x, dq, dq), ca.jtimes(g2y, dq, dq)
+        ddg3x, ddg3y = ca.jtimes(g3x, dq, dq), ca.jtimes(g3y, dq, dq)
+        ddg4x, ddg4y = ca.jtimes(g4x, dq, dq), ca.jtimes(g4y, dq, dq)
+        ddg5x, ddg5y = ca.jtimes(g5x, dq, dq), ca.jtimes(g5y, dq, dq)
+
+
+        P = [[p1x, p1y], [p2x, p2y], [p3x, p3y], [p4x, p4y], [p5x, p5y]]
+        dP = [[dp1x, dp1y], [dp2x, dp2y], [dp3x, dp3y], [dp4x, dp4y], [dp5x, dp5y]]
+
+        G = [[g1x, g1y], [g2x, g2y], [g3x, g3y], [g4x, g4y], [g5x, g5y]]
+        dG = [[dg1x, dg1y], [dg2x, dg2y], [dg3x, dg3y], [dg4x, dg4y], [dg5x, dg5y]]
+        ddG = [[ddg1x, ddg1y], [ddg2x, ddg2y], [ddg3x, ddg3y], [ddg4x, ddg4y], [ddg5x, ddg5y]]
+
+        return P, dP, G, dG, ddG
+
+
+    ########################
+
+
+    def Dynamics(self, state, u):
+        q= state[0]
+        dq= state[1]
+        u= u[0]
+        m=[self.m1, self.m2, self.m3, self.m4, self.m5]
+        P0=[0, 0]
+
+        P, dP, G, dG, ddG = self.Kinematics(q, dq)
+
+        eq = [0, 0, 0, 0, 0]
+
+        eq[4] = (G[4][0]-P[3][0])*(-self.m5*self.g) - ((G[4][0]-P[3][0])*self.m5*ddG[4][1] - (G[4][1]-P[3][1])*self.m5*ddG[4][0])
+
+        for i in [3, 4]:
+            eq[3] =(G[i][0]-P[1][0])*(-m[i]*self.g) - ((G[i][0]-P[1][0])*m[i]*ddG[i][1] - (G[i][1]-P[1][1])*m[i]*ddG[i][0])
+
+        for i in [2, 3, 4]:
+            eq[2] =(G[i][0]-P[1][0])*(-m[i]*self.g) - ((G[i][0]-P[1][0])*m[i]*ddG[i][1] - (G[i][1]-P[1][1])*m[i]*ddG[i][0])
+
+        for i in [1, 2, 3, 4]:
+            eq[1] =(G[i][0]-P[0][0])*(-m[i]*self.g) - ((G[i][0]-P[0][0])*m[i]*ddG[i][1] - (G[i][1]-P[0][1])*m[i]*ddG[i][0])
+
+        for i in [0, 1, 2, 3, 4]:
+            eq[0] =(G[i][0]-P0[0])*(-m[i]*self.g) - ((G[i][0]-P0[0])*m[i]*ddG[i][1] - (G[i][1]-P0[1])*m[i]*ddG[i][0])
+
+
+        ddq5 = (u[3] + eq[4])/self.i5
+        ddq4 = (u[2] + eq[3] - ddq5*self.i5)/self.i4
+        ddq3 = (u[1] + eq[2] - ddq5*self.i5 - ddq4*self.i4)/self.i3
+        ddq2 = (u[0] + eq[1] - ddq5*self.i5 - ddq4*self.i4 - ddq3*self.i3)/self.i2
+        ddq1 = (eq[0] - ddq5*self.i5 - ddq4*self.i4 - ddq3*self.i3 - ddq2*self.i2)/self.i1
+
+        ddq = [ddq1, ddq2, ddq3, ddq4, ddq5]
+        return P, dP, G, dG, ddG, ddq
+
+
+#############################
+
+
+    def heel_strike(self, q, dq, p, G, dG):
+        qn= q[::-1]
+        P0=[0, 0]
+        P= [P0, p[0], p[1], p[2], p[3], p[4]]
+        Pn=[P[5], P[4], P[2], P[3], P[1], P[0]]
+        Gn= G[::-1]
+        dGn= dG[::-1]
+        m=[self.m1, self.m2, self.m3, self.m4, self.m5]
+        I=[self.i1, self.i2, self.i3, self.i4, self.i5]
+        # if masses are not symmetric the we will need another mn & In
+
+        eq= [0, 0, 0, 0, 0]
+
+        i=0
+        j=4-i
+        eq[4] = ((G[i][0] - P[1][0])*m[i]*dG[i][1]) - ((G[i][1] - P[1][1])*m[i]*dG[i][0]) + dq[i]*I[i] - (
+                (Gn[j][0] - Pn[4][0])*m[j]*dGn[j][1] - (Gn[j][1] - Pn[4][1])*m[j]*dGn[j][0])
+
+        for i in [0, 1]:
+            j=4-1
+            eq[3] = ((G[i][0] - P[2][0]) * m[i] * dG[i][1]) - ((G[i][1] - P[2][1]) * m[i] * dG[i][0]) + dq[i] * I[i] - (
+                        (Gn[j][0] - Pn[2][0]) * m[j] * dGn[j][1] - (Gn[j][1] - Pn[2][1]) * m[j] * dGn[j][0])
+
+        for i in [0, 1, 2]:
+            j=4-1
+            eq[2] = ((G[i][0] - P[2][0]) * m[i] * dG[i][1]) - ((G[i][1] - P[2][1]) * m[i] * dG[i][0]) + dq[i] * I[i] - (
+                        (Gn[j][0] - Pn[2][0]) * m[j] * dGn[j][1] - (Gn[j][1] - Pn[2][1]) * m[j] * dGn[j][0])
+
+        for i in [0, 1, 2, 3]:
+            j=4-1
+            eq[1] = ((G[i][0] - P[4][0]) * m[i] * dG[i][1]) - ((G[i][1] - P[4][1]) * m[i] * dG[i][0]) + dq[i] * I[i] - (
+                        (Gn[j][0] - Pn[1][0]) * m[j] * dGn[j][1] - (Gn[j][1] - Pn[1][1]) * m[j] * dGn[j][0])
+
+        for i in [0, 1, 2, 3, 4]:
+            j=4-1
+            eq[0] = ((G[i][0] - P[5][0]) * m[i] * dG[i][1]) - ((G[i][1] - P[5][1]) * m[i] * dG[i][0]) + dq[i] * I[i] - (
+                        (Gn[j][0] - Pn[0][0]) * m[j] * dGn[j][1] - (Gn[j][1] - Pn[0][1]) * m[j] * dGn[j][0])
+
+
+        dqn5= eq[4] / self.i5
+        dqn4= (eq[3] - dqn5*self.i5) / self.i4
+        dqn3 = (eq[2] - dqn5*self.i5 - dqn4*self.i4) / self.i3
+        dqn2 = (eq[1] - dqn5*self.i5 - dqn4*self.i4 - dqn3*self.i3) / self.i2
+        dqn1 = (eq[0] - dqn5*self.i5 - dqn4*self.i4 - dqn3*self.i3 - dqn2*self.i2) / self.i1
+
+        dqn=[dqn1, dqn2, dqn3, dqn4, dqn5]
+        return [qn, dqn]
+
+
+
+class nlp(five_link):
+    def __init__(self, five_link):
+        self.cost = self.get_cost(five_link.u, five_link.N, five_link.h)
+        five_link.opti.minimize(self.cost)
+        self.ceq = self.get_constraints(five_link)
+        five_link.opti.subject_to(self.ceq)
+        self.bounds = self.get_bounds(five_link)
+        five_link.opti.subject_to(self.bounds)
+        p_opts = {"expand": True}
+        s_opts = {"max_iter": 1000}
+        five_link.opti.solver("ipopt", p_opts, s_opts)
+        self.initial = self.inital_guess(five_link)
+
+
+    def get_cost(self, u, N, h):
+        result = 0
+        for i in range(N - 1):
+            for j in range(4):
+                result += (h / 2) * (u[i][0][j] ** 2 + u[i + 1][0][j] ** 2)
+        return result
+
+
+    def get_constraints(self, five_link):
+        ceq = []
+        for i in range(five_link.N - 1):
+            q1 = (five_link.state[i][0])
+            q2 = (five_link.state[i + 1][0])
+            dq1 = (five_link.state[i][1])
+            dq2 = (five_link.state[i + 1][1])
+            ddq1 = five_link.ddq[i]
+            ddq2 = five_link.ddq[i + 1]
+            ceq.extend(self.get_collocation(q1, q2, dq1, dq2, ddq1, ddq2, five_link.h))
+
+        q0 = (five_link.state[0][0])
+        dq0 = (five_link.state[0][1])
+        qf = (five_link.state[-1][0])
+        ceq.extend(self.get_boundary_constrainsts(q0, dq0, qf, five_link.initial, five_link.final, five_link.impactmap))
+        ceq.extend([(five_link.dp0[4][1] > 0), (five_link.dpN[4][1] < 0)])
+        #here skiped
+        return ceq
+
+
+    def get_collocation(self, q1, q2, dq1, dq2, ddq1, ddq2, h):
+        c = []
+        for i in range(4):
+            c.extend([(((h / 2) * (ddq2[i] + ddq1[i])) - (dq2[i] - dq1[i]) == 0)])
+        c.extend([(((h / 2) * (dq2 + dq1)) - (q2 - q1) == 0)])
+        return c
+
+
+    def get_boundary_constrainsts(self, state1, dstate1, state2, initial, final, impact):
+        c = []
+        # here impact
+        for i in range(4): c.extend([(state1[i] - impact[0][i] == 0), (dstate1[i] - impact[1][i] == 0)
+                                        , ((state2[i] - final[i]) == 0)])
+        return c
+
+
+
+    def get_bounds(self, five_link):
+        c = []
+        f = 20
+        for i in range(five_link.N):
+            q = (five_link.state[i][0])
+            dq = (five_link.state[i][1])
+            u = (five_link.u[i][0])
+            c.extend([five_link.opti.bounded(-np.pi, q[0], np.pi),
+                    five_link.opti.bounded(-np.pi, q[1], np.pi),
+                    five_link.opti.bounded(-np.pi, q[2], np.pi),
+                    five_link.opti.bounded(-np.pi, q[3], np.pi),
+                    five_link.opti.bounded(-np.pi, q[4], np.pi),
+                    # five_link.opti.bounded(-f * walker.pi, dq[0], f * walker.pi),
+                    # five_link.opti.bounded(-f * walker.pi, dq[1], f * walker.pi),
+                    # five_link.opti.bounded(-f * walker.pi, dq[2], f * walker.pi),
+                    # five_link.opti.bounded(-f * walker.pi, dq[3], f * walker.pi),
+                    # five_link.opti.bounded(-f * five_link.pi, dq[4], f * five_link.pi),
+                    # walker.opti.bounded(0,u[0],0),
+                    five_link.opti.bounded(-five_link.max_tau, u[0], five_link.max_tau),
+                    five_link.opti.bounded(-five_link.max_tau, u[1], five_link.max_tau),
+                    five_link.opti.bounded(-five_link.max_tau, u[2], five_link.max_tau),
+                    five_link.opti.bounded(-five_link.max_tau, u[3], five_link.max_tau)])
+        return c
+
+
+
+    def initial_guess(self, five_link):
+        qi = np.zeros((5, five_link.N))
+        dqi = np.ones((5, five_link.N))
+        ui = np.zeros((4, five_link.N))
+
+        for i in range(five_link.N):
+
+
+
+
+
+
+
+
+
