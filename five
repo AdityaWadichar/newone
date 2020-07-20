@@ -26,7 +26,7 @@ class five_link():
         self.N= 100
         self.h= self.T/self.N
 
-        self.initial= [-0.3, 0.7, 0.0, -0.5, -0.3] #[-0.3, 0.7, 0.0, -0.5, -0.3]
+        self.initial= [-0.3, 0.65, 0, -0.55, -0.3]
         self.final= self.initial[::-1]
 
         self.max_tau= 5
@@ -66,7 +66,7 @@ class five_link():
                 self.dp0 = dP
             if i == self.N - 1:
                 self.dpN = dP
-                self.impactmap = self.heelStrike(self.state[i][0], self.state[i][1], P, dP, G, dG)
+                self.impactmap = self.heel_strike(self.state[i][0], self.state[i][1], P, dP, G, dG)
 
 
     def Kinematics(self, q, dq):
@@ -330,8 +330,8 @@ class nlp(five_link):
             # ceq.extend([((five_link.state[i][0][4, 0] + five_link.state[i][0][3, 0]) < 0)])
         #ceq.extend([((five_link.pos[five_link.N-1][4][1]) <= 0.03)])
 
-            # if i == 0:
-            #     ceq.extend([((five_link.pos[i][4][1]) == five_link.P0[1])])
+            if i == 0:
+                ceq.extend([((five_link.pos[i][4][1]) == five_link.P0[1])])
         ceq.extend([five_link.pos[-1][4][1] == five_link.P0[1]])
         #ceq.extend([five_link.pos[-1][4][0] == five_link.step_max + five_link.P0[0]])
         return ceq
