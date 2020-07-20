@@ -22,11 +22,11 @@ class five_link():
         self.P0=[0,0]
 
         self.g=-9.81
-        self.T= 0.1
+        self.T= 0.2
         self.N= 100
         self.h= self.T/self.N
 
-        self.initial= [-0.3, 0.65, 0, -0.55, -0.3]
+        self.initial= [-0.35, 0.65, 0, -0.55, -0.35]
         self.final= self.initial[::-1]
 
         self.max_tau= 5
@@ -319,19 +319,19 @@ class nlp(five_link):
         qf = (five_link.state[-1][0])
         dqf = (five_link.state[-1][1])
         ceq.extend(self.get_boundary_constrainsts(q0, dq0, qf, dqf, five_link.initial, five_link.final, five_link.impactmap))
-        ceq.extend([(five_link.dp0[4][1] > 0), (five_link.dpN[4][1] < 0)])
+        #ceq.extend([(five_link.dp0[4][1] > 0), (five_link.dpN[4][1] < 0)])
         #here skiped
         for i in range(five_link.N):
-            ceq.extend([((five_link.pos[i][4][0]) <= five_link.step_max)])
-            ceq.extend([((five_link.pos[i][4][0]) >= -five_link.step_max)])
+            # ceq.extend([((five_link.pos[i][4][0]) <= five_link.step_max)])
+            # ceq.extend([((five_link.pos[i][4][0]) >= -five_link.step_max)])
             ceq.extend([((five_link.pos[i][4][1]) >= 0)])
             ceq.extend([((five_link.pos[i][4][1]) <= 0.2)])
             # ceq.extend([((five_link.state[i][0][0, 0] + five_link.state[i][0][1, 0]) < 0)])
             # ceq.extend([((five_link.state[i][0][4, 0] + five_link.state[i][0][3, 0]) < 0)])
         #ceq.extend([((five_link.pos[five_link.N-1][4][1]) <= 0.03)])
 
-            if i == 0:
-                ceq.extend([((five_link.pos[i][4][1]) == five_link.P0[1])])
+
+        ceq.extend([((five_link.pos[0][4][1]) == five_link.P0[1])])
         ceq.extend([five_link.pos[-1][4][1] == five_link.P0[1]])
         #ceq.extend([five_link.pos[-1][4][0] == five_link.step_max + five_link.P0[0]])
         return ceq
@@ -456,6 +456,24 @@ p21=[]
 p31=[]
 p41=[]
 p51=[]
+
+q11=[]
+q21=[]
+q31=[]
+q41=[]
+q51=[]
+
+dq11=[]
+dq21=[]
+dq31=[]
+dq41=[]
+dq51=[]
+
+u11=[]
+u21=[]
+u31=[]
+u41=[]
+
 for t in range(k):
     for i in range(sol.N):
         p11.append([pos[5*t+0][i][0], pos[5*t+0][i][1]])
@@ -463,6 +481,23 @@ for t in range(k):
         p31.append([pos[5*t+2][i][0], pos[5*t+2][i][1]])
         p41.append([pos[5*t+3][i][0], pos[5*t+3][i][1]])
         p51.append([pos[5*t+4][i][0], pos[5*t+4][i][1]])
+
+        q11.append(q[5 * t + 0][i])
+        q21.append(q[5 * t + 1][i])
+        q31.append(q[5 * t + 2][i])
+        q41.append(q[5 * t + 3][i])
+        q51.append(q[5 * t + 4][i])
+
+        dq11.append(dq[5 * t + 0][i])
+        dq21.append(dq[5 * t + 1][i])
+        dq31.append(dq[5 * t + 2][i])
+        dq41.append(dq[5 * t + 3][i])
+        dq51.append(dq[5 * t + 4][i])
+
+        u11.append(u[5 * t + 0][i])
+        u21.append(u[5 * t + 1][i])
+        u31.append(u[5 * t + 2][i])
+        u41.append(u[5 * t + 3][i])
 print(len(p11))
 # print((p11[0]))
 # print(len(p11[0][0]))
@@ -492,24 +527,26 @@ animation = camera.animate(interval=60)
 #animation.save('animation2.mp4')
 plt.show()
 plt.close()
+print(len(q11))
 
 name = ['q', 'dq', 'u']
 
 plt.subplot(322)
 plt.title('Optimised Solution')
-plt.plot(time, q[:][0], 'r', time, q[:][1], 'g', time, q[:][2], 'b',
-         time, q[:][3], 'y', time, q[:][4], 'c')
+plt.plot(time, q11, 'r', time, q21, 'g', time, q31, 'b',
+         time, q41, 'y', time, q51, 'c')
 
 plt.subplot(321)
 plt.title('Initial Guess')
-iniq = solv.qin
+iniq1 = solv.qin
+iniq=[iniq1, iniq1, iniq1, iniq1]
 plt.plot(time, iniq[:][0], 'r', time, iniq[:][1], 'g', time, iniq[:][2], 'b',
          time, iniq[:][3], 'y', time, iniq[:][4], 'c')
 plt.ylabel(name[0])
 
 plt.subplot(324)
-plt.plot(time, dq[:][0], 'r', time, dq[:][1], 'g', time, dq[:][2], 'b',
-         time, dq[:][3], 'y', time, dq[:][4], 'c')
+plt.plot(time, dq11, 'r', time, dq21, 'g', time, dq31, 'b',
+         time, dq41, 'y', time, dq51, 'c')
 
 plt.subplot(323)
 inidq = solv.dqin
@@ -518,8 +555,8 @@ plt.plot(time, inidq[0][:], 'r', time, inidq[1][:], 'g', time, inidq[2][:], 'b',
 plt.ylabel(name[1])
 
 plt.subplot(326)
-plt.plot(time, u[:][0], 'g', time, u[:][1], 'b', time, u[:][2], 'y',
-         time, u[:][3], 'c')
+plt.plot(time, u11, 'g', time, u21, 'b', time, u31, 'y',
+         time, u41, 'c')
 
 plt.subplot(325)
 iniu = solv.uin
