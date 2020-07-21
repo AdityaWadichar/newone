@@ -80,7 +80,7 @@ class five_link():
                 self.dp0 = dP
             if i == self.N - 1:
                 self.dpN = dP
-                self.impactmap = self.heel_strike(self.state[i][0], self.state[i][1], P, dP, G, dG)
+            self.impactmap = self.heel_strike(self.state[i][0], self.state[i][1], P, dP, G, dG)
 
 
     def Kinematics(self, q, dq):
@@ -372,7 +372,7 @@ stop=start[::-1]
 # Initial guess
 qin = np.zeros((5, N))
 dqin = np.zeros((5, N))
-uin = np.zeros((4, N))
+uin = np.ones((4, N))
 
 for i in range(5):
     for j in range(N):
@@ -394,7 +394,7 @@ for t in range(k):
 
     sol1=pas.opti.solve()
 
-    print(sol1.value(pas.u[50][0][3]))
+    print(sol1.value(pas.u[30][0][3]))
 
 
     for j in range(5):
@@ -508,6 +508,10 @@ qing=np.zeros((5, k*N))
 dqing=np.zeros((5, k*N))
 uing=np.zeros((4, k*N))
 
+qing2=np.zeros((5, k*N))
+dqing2=np.zeros((5, k*N))
+uing2=np.zeros((4, k*N))
+
 q=np.zeros((5, k*N))
 dq=np.zeros((5, k*N))
 u=np.zeros((4, k*N))
@@ -518,14 +522,20 @@ for t in range(k):
                 qing[j][t*N+i]=qin[j][i]
                 dqing[j][t * N + i] = dqin[j][i]
 
+
             else:
                 qing[4-j][t * N + i] = qin[j][i]
                 dqing[4-j][t * N + i] = dqin[j][i]
+
+            qing2[j][t * N + i] = qin[j][i]
+            dqing2[j][t * N + i] = dqin[j][i]
+
             if j<4:
                 if (t % 2 == 0):
                     uing[j][t * N + i] = uin[j][i]
                 else:
                     uing[3-j][t * N + i] = uin[j][i]
+                uing2[j][t * N + i] = uin[j][i]
 
 
 for t in range(k):
@@ -579,8 +589,8 @@ plt.subplot(321)
 plt.title('Initial Guess')
 
 
-plt.plot(time, qing[:][0], 'r', time, qing[:][1], 'g', time, qing[:][2], 'b',
-         time, qing[:][3], 'y', time, qing[:][4], 'c')
+plt.plot(time, qing[0][:], 'r', time, qing[1][:], 'g', time, qing[2][:], 'b',
+         time, qing[3][:], 'y', time, qing[4][:], 'c')
 plt.ylabel(name[0])
 
 plt.subplot(324)
@@ -599,12 +609,56 @@ plt.plot(time, u[0], 'g', time, u[1], 'b', time, u[2], 'y',
 
 plt.subplot(325)
 
-plt.plot(time, uing[:][0], 'r', time, uing[:][1], 'g', time, uing[:][2], 'b',
-         time, uing[:][3], 'y')
+plt.plot(time, uing[0][:], 'r', time, uing[1][:], 'g', time, uing[2][:], 'b',
+         time, uing[3][:], 'y')
 plt.ylabel(name[2])
 
 plt.suptitle('Five-Link')
 plt.show()
+
+
+#####################
+
+
+
+name = ['q', 'dq', 'u']
+
+plt.subplot(322)
+plt.title('Optimised Solution')
+plt.plot(time, q11, 'r', time, q21, 'g', time, q31, 'b',
+         time, q41, 'y', time, q51, 'c')
+
+plt.subplot(321)
+plt.title('Initial Guess')
+
+
+plt.plot(time, qing2[0][:], 'r', time, qing2[1][:], 'g', time, qing2[2][:], 'b',
+         time, qing2[3][:], 'y', time, qing2[4][:], 'c')
+plt.ylabel(name[0])
+
+plt.subplot(324)
+plt.plot(time, dq11, 'r', time, dq21, 'g', time, dq31, 'b',
+         time, dq41, 'y', time, dq51, 'c')
+
+plt.subplot(323)
+
+plt.plot(time, dqing2[0][:], 'r', time, dqing2[1][:], 'g', time, dqing2[2][:], 'b',
+         time, dqing2[3][:], 'y', time, dqing2[4][:], 'c')
+plt.ylabel(name[1])
+
+plt.subplot(326)
+plt.plot(time, u11, 'g', time, u21, 'b', time, u31, 'y',
+         time, u41, 'c')
+
+plt.subplot(325)
+
+plt.plot(time, uing2[0][:], 'r', time, uing2[1][:], 'g', time, uing2[2][:], 'b',
+         time, uing2[3][:], 'y')
+plt.ylabel(name[2])
+
+plt.suptitle('Five-Link')
+plt.show()
+
 
 
 
