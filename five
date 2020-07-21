@@ -35,7 +35,7 @@ class five_link():
         self.g=-9.81
         self.T= T
         self.N= N
-        self.h= self.T/self.N
+        self.h= self.T/(self.N)
 
         self.initial= start
         self.final= stop
@@ -195,8 +195,12 @@ class five_link():
         ddq2 = (u[0] + eq[1] - ddq5*self.i5 - ddq4*self.i4 - ddq3*self.i3)/self.i2
         ddq1 = (eq[0] - ddq5*self.i5 - ddq4*self.i4 - ddq3*self.i3 - ddq2*self.i2)/self.i1
 
+
+
         ddq = [ddq1, ddq2, ddq3, ddq4, ddq5]
         return P, dP, G, dG, ddG, ddq
+
+
 
 
     #############################
@@ -291,17 +295,18 @@ class nlp(five_link):
             dq2 = (five_link.state[i + 1][1])
             ddq1 = five_link.ddq[i]
             ddq2 = five_link.ddq[i + 1]
-            ceq.extend(self.get_collocation(q1, q2, dq1, dq2, five_link.h))
+            ceq.extend(self.get_collocation(q1, q2, dq1, dq2, ddq1, ddq2, five_link.h))
 
         q0 = (five_link.state[0][0])
         dq0 = (five_link.state[0][1])
         qf = (five_link.state[-1][0])
         dqf = (five_link.state[-1][1])
-        ceq.extend(self.get_boundary_constrainsts(q0, dq0, five_link.impactmap))
+        ceq.extend(self.get_boundary_constrainsts(q0, dq0, five_link.impactmap, five_link))
+
 
         for i in range(five_link.N):
             ceq.extend([((five_link.pos[i][4][1]) >= 0)])
-            #ceq.extend([((five_link.pos[i][4][1]) <= 0.2)])
+            ceq.extend([((five_link.pos[i][4][1]) <= 0.2)])
 
         ceq.extend([((five_link.pos[0][4][1]) == five_link.P0[1])])
         ceq.extend([five_link.pos[-1][4][1] == five_link.P0[1]])
@@ -309,16 +314,19 @@ class nlp(five_link):
         return ceq
 
 
-    def get_collocation(self, q1, q2, dq1, dq2, h):
+    def get_collocation(self, q1, q2, dq1, dq2, ddq1, ddq2, h):
         c = []
+        for i in range(4):
+            c.extend([(((h / 2) * (ddq2[i] + ddq1[i])) - (dq2[i] - dq1[i]) == 0)])
         c.extend([(((h / 2) * (dq2 + dq1)) - (q2 - q1) == 0)])
         return c
 
 
-    def get_boundary_constrainsts(self, state1, dstate1, impact):
+    def get_boundary_constrainsts(self, state1, dstate1, impact, five_link):
         c = []
         # here impact
-        for i in range(4): c.extend([(state1[i] - impact[0][i] == 0), (dstate1[i] - impact[1][i] == 0)])
+        for i in range(4): c.extend([(state1[i, 0] - impact[0][i] == 0), (dstate1[i, 0] - impact[1][i] == 0)
+                                     , state1[i, 0] - five_link.initial[i]==0])
 
         return c
 
@@ -365,14 +373,14 @@ class nlp(five_link):
 #########################
 
 N=100
-T=1
-start=[-0.3, 0.7, 0, -0.5, -0.3]#[-0.35, 0.65, 0, -0.55, -0.35]
+T=0.1
+start=[-0.35, 0.65, 0, -0.55, -0.35]#[-0.3, 0.7, 0, -0.5, -0.3]#[-0.35, 0.65, 0, -0.55, -0.35]
 stop=start[::-1]
 
 # Initial guess
 qin = np.zeros((5, N))
 dqin = np.zeros((5, N))
-uin = np.ones((4, N))
+uin = np.zeros((4, N))
 
 for i in range(5):
     for j in range(N):
@@ -394,7 +402,7 @@ for t in range(k):
 
     sol1=pas.opti.solve()
 
-    print(sol1.value(pas.u[30][0][3]))
+    print(sol1.value(pas.u[50][0][0]))
 
 
     for j in range(5):
@@ -422,6 +430,7 @@ for t in range(k):
 
     p = [(t+1)*pos[4][-1][0], 0]
     #print(p)
+
 
 
 time = np.arange(0, k*T, pas.h)
@@ -617,9 +626,12 @@ plt.suptitle('Five-Link')
 plt.show()
 
 
+
+
 #####################
 
-
+##############
+# regular graph
 
 name = ['q', 'dq', 'u']
 
@@ -659,7 +671,7 @@ plt.ylabel(name[2])
 plt.suptitle('Five-Link')
 plt.show()
 
-
+print(u)
 
 
 
