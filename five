@@ -1,8 +1,19 @@
 import casadi as ca
 import numpy as np
+from celluloid import Camera
+from matplotlib import pyplot as plt
+
+################
+# main code starts after line 360
+################
+
+
+###############
+# class five_link for five link biped model
+###############
 
 class five_link():
-    def __init__(self):
+    def __init__(self, start, stop, qin, dqin, uin, N, T):
         self.opti= ca.Opti()
 
         #masses
@@ -22,12 +33,15 @@ class five_link():
         self.P0=[0,0]
 
         self.g=-9.81
-        self.T= 0.2
-        self.N= 100
+        self.T= T
+        self.N= N
         self.h= self.T/self.N
 
-        self.initial= [-0.35, 0.65, 0, -0.55, -0.35]
-        self.final= self.initial[::-1]
+        self.initial= start
+        self.final= stop
+        self.qin=qin
+        self.dqin=dqin
+        self.uin=uin
 
         self.max_tau= 5
         self.max_angle= np.pi
@@ -185,7 +199,7 @@ class five_link():
         return P, dP, G, dG, ddG, ddq
 
 
-#############################
+    #############################
 
 
     def heel_strike(self, q, dq, p, dP, G, dG):
@@ -197,7 +211,7 @@ class five_link():
         dGn= dG[::-1]
         m=[self.m1, self.m2, self.m3, self.m4, self.m5]
         I=[self.i1, self.i2, self.i3, self.i4, self.i5]
-        # if masses are not symmetric the we will need another mn & In
+        # if masses are not symmetric the we will need another m_next (mn) & I_next (In)
 
         eq= [0, 0, 0, 0, 0]
 
@@ -237,48 +251,13 @@ class five_link():
         return [qn, dqn]
 
 
-    def heelStrike(self, q, dq, p, dp, g, dg):
-        qi = [q[4], q[3], q[2], q[1], q[0]]
-        pi = [p[4], p[3], p[2], p[1], p[0]]
-        dpi = [dp[4], dp[3], dp[2], dp[1], dp[0]]
-        gi = [g[4], g[3], g[2], g[1], g[0]]
-        dgi = [dg[4], dg[3], dg[2], dg[1], dg[0]]
-        m = [self.m1, self.m2, self.m3, self.m4, self.m5]
-        I = [self.i1, self.i2, self.i3, self.i4, self.i5]
-        s = [0, 0, 0, 0, 0]
-        for i in range(5):
-            s[0] += ((m[i] * (((g[i][0] - p[4][0]) * dg[i][1]) - ((g[i][1] - p[4][1]) * dg[i][0]))) + (
-                        I[i] * dq[i])
-                     - (m[i] * (((gi[i][0] - pi[0][0]) * dgi[i][1]) - ((gi[i][1] - pi[0][1]) * dgi[i][0]))))
-            if i < 4:
-                s[1] += ((m[i] * (((g[i][0] - p[3][0]) * dg[i][1]) - ((g[i][1] - p[3][1]) * dg[i][0]))) + (
-                            I[i] * dq[i])
-                         - (m[i] * (((gi[i][0] - pi[1][0]) * dgi[i][1]) - ((gi[i][1] - pi[1][1]) * dgi[i][0]))))
-                if i < 3:
-                    s[2] += ((m[i] * (((g[i][0] - p[1][0]) * dg[i][1]) - ((g[i][1] - p[1][1]) * dg[i][0]))) + (
-                                I[i] * dq[i])
-                             - (m[i] * (
-                                        ((gi[i][0] - pi[1][0]) * dgi[i][1]) - ((gi[i][1] - pi[1][1]) * dgi[i][0]))))
-                    if i < 2:
-                        s[3] += ((m[i] * (((g[i][0] - p[1][0]) * dg[i][1]) - ((g[i][1] - p[1][1]) * dg[i][0]))) + (
-                                    I[i] * dq[i])
-                                 - (m[i] * (
-                                            ((gi[i][0] - pi[1][0]) * dgi[i][1]) - ((gi[i][1] - pi[1][1]) * dgi[i][0]))))
-                        if i < 1:
-                            s[4] += ((m[i] * (
-                                        ((g[i][0] - p[0][0]) * dg[i][1]) - ((g[i][1] - p[0][1]) * dg[i][0]))) + (
-                                                 I[i] * dq[i])
-                                     - (m[i] * (((gi[i][0] - pi[3][0]) * dgi[i][1]) - (
-                                                (gi[i][1] - pi[3][1]) * dgi[i][0]))))
-        dqi = [0, 0, 0, 0, 0]
-        dqi[4] = s[4] / I[4]
-        dqi[3] = s[3] - s[4] / I[3]
-        dqi[2] = s[2] - s[3] / I[2]
-        dqi[1] = s[1] - s[2] / I[1]
-        dqi[0] = s[0] - s[1] / I[0]
 
-        return [qi, dqi]
 
+
+
+########################
+# class nlp for optimization
+########################
 
 
 class nlp(five_link):
@@ -292,7 +271,7 @@ class nlp(five_link):
         p_opts = {"expand": True}
         s_opts = {"max_iter": 1000}
         five_link.opti.solver("ipopt", p_opts, s_opts)
-        self.qin, self.dqin, self.uin = self.initial_guess(five_link)
+        self.initial_guess(five_link)
 
 
     def get_cost(self, u, N, h):
@@ -312,44 +291,35 @@ class nlp(five_link):
             dq2 = (five_link.state[i + 1][1])
             ddq1 = five_link.ddq[i]
             ddq2 = five_link.ddq[i + 1]
-            ceq.extend(self.get_collocation(q1, q2, dq1, dq2, ddq1, ddq2, five_link.h))
+            ceq.extend(self.get_collocation(q1, q2, dq1, dq2, five_link.h))
 
         q0 = (five_link.state[0][0])
         dq0 = (five_link.state[0][1])
         qf = (five_link.state[-1][0])
         dqf = (five_link.state[-1][1])
-        ceq.extend(self.get_boundary_constrainsts(q0, dq0, qf, dqf, five_link.initial, five_link.final, five_link.impactmap))
-        #ceq.extend([(five_link.dp0[4][1] > 0), (five_link.dpN[4][1] < 0)])
-        #here skiped
-        for i in range(five_link.N):
-            # ceq.extend([((five_link.pos[i][4][0]) <= five_link.step_max)])
-            # ceq.extend([((five_link.pos[i][4][0]) >= -five_link.step_max)])
-            ceq.extend([((five_link.pos[i][4][1]) >= 0)])
-            ceq.extend([((five_link.pos[i][4][1]) <= 0.2)])
-            # ceq.extend([((five_link.state[i][0][0, 0] + five_link.state[i][0][1, 0]) < 0)])
-            # ceq.extend([((five_link.state[i][0][4, 0] + five_link.state[i][0][3, 0]) < 0)])
-        #ceq.extend([((five_link.pos[five_link.N-1][4][1]) <= 0.03)])
+        ceq.extend(self.get_boundary_constrainsts(q0, dq0, five_link.impactmap))
 
+        for i in range(five_link.N):
+            ceq.extend([((five_link.pos[i][4][1]) >= 0)])
+            #ceq.extend([((five_link.pos[i][4][1]) <= 0.2)])
 
         ceq.extend([((five_link.pos[0][4][1]) == five_link.P0[1])])
         ceq.extend([five_link.pos[-1][4][1] == five_link.P0[1]])
-        #ceq.extend([five_link.pos[-1][4][0] == five_link.step_max + five_link.P0[0]])
+
         return ceq
 
 
-    def get_collocation(self, q1, q2, dq1, dq2, ddq1, ddq2, h):
+    def get_collocation(self, q1, q2, dq1, dq2, h):
         c = []
-        # for i in range(4):
-        #     c.extend([(((h / 2) * (ddq2[i] + ddq1[i])) - (dq2[i] - dq1[i]) == 0)])
         c.extend([(((h / 2) * (dq2 + dq1)) - (q2 - q1) == 0)])
         return c
 
 
-    def get_boundary_constrainsts(self, state1, dstate1, state2, dstate2, initial, final, impact):
+    def get_boundary_constrainsts(self, state1, dstate1, impact):
         c = []
         # here impact
-        for i in range(4): c.extend([(state1[i] - impact[0][i] == 0), (dstate1[i] - impact[1][i] == 0)
-                                        , ]) #((state2[i] - final[i]) == 0)
+        for i in range(4): c.extend([(state1[i] - impact[0][i] == 0), (dstate1[i] - impact[1][i] == 0)])
+
         return c
 
 
@@ -371,7 +341,6 @@ class nlp(five_link):
                     five_link.opti.bounded(-f * np.pi, dq[2], f * np.pi),
                     five_link.opti.bounded(-f * np.pi, dq[3], f * np.pi),
                     five_link.opti.bounded(-f * np.pi, dq[4], f * np.pi),
-                    # walker.opti.bounded(0,u[0],0),
                     five_link.opti.bounded(-five_link.max_tau, u[0], five_link.max_tau),
                     five_link.opti.bounded(-five_link.max_tau, u[1], five_link.max_tau),
                     five_link.opti.bounded(-five_link.max_tau, u[2], five_link.max_tau),
@@ -381,72 +350,84 @@ class nlp(five_link):
 
 
     def initial_guess(self, five_link):
-        qi = np.zeros((5, five_link.N))
-        dqi = np.ones((5, five_link.N))
-        ui = np.zeros((4, five_link.N))
-
-        q1= np.array([[five_link.initial[0]], [five_link.initial[1]], [five_link.initial[2]], [five_link.initial[3]], [five_link.initial[4]]])
-        q2 = np.array([[five_link.final[0]], [five_link.final[1]], [five_link.final[2]], [five_link.final[3]], [five_link.final[4]]])
-
-        dqi= dqi*(q2-q1)/five_link.T
         for i in range (5):
             for j in range(five_link.N):
-                qi[i, j] = (five_link.initial[i] + (j / (five_link.N - 1)) * (five_link.final[i] - five_link.initial[i]))
-
-                five_link.opti.set_initial(five_link.state[j][0][i], qi[i][j])
-                five_link.opti.set_initial(five_link.state[j][1][i], dqi[i][j])
+                five_link.opti.set_initial(five_link.state[j][0][i], five_link.qin[i][j])
+                five_link.opti.set_initial(five_link.state[j][1][i], five_link.dqin[i][j])
                 if i<4:
-                    five_link.opti.set_initial(five_link.u[j][0][i], ui[i][j])
-
-        return qi, dqi, ui
+                    five_link.opti.set_initial(five_link.u[j][0][i], five_link.uin[i][j])
 
 
 
-q = [];
-dq = [];
-u = [];
+
+#########################
+# main code starts from below
+#########################
+
+N=100
+T=1
+start=[-0.3, 0.7, 0, -0.5, -0.3]#[-0.35, 0.65, 0, -0.55, -0.35]
+stop=start[::-1]
+
+# Initial guess
+qin = np.zeros((5, N))
+dqin = np.zeros((5, N))
+uin = np.zeros((4, N))
+
+for i in range(5):
+    for j in range(N):
+        qin[i, j] = (start[i] + (j / (N - 1)) * (stop[i] - start[i]))
+        dqin[i, j] = (stop[i] - start[i])/T
+
+
+
+q = []
+dq = []
+u = []
 pos = []
-k=4
+k=4  #steps
 p=[0,0]
 p01=[]
 for t in range(k):
-    sol=five_link()
-    solv=nlp(sol)
+    pas=five_link(start, stop, qin, dqin, uin, N, T)
+    solv=nlp(pas)
 
-    sol1=sol.opti.solve()
+    sol1=pas.opti.solve()
+
+    print(sol1.value(pas.u[50][0][3]))
 
 
     for j in range(5):
-        tempq = [];
-        tempdq = [];
-        tempu = [];
+        tempq = []
+        tempdq = []
+        tempu = []
         temp = []
-        for i in range(sol.N):
-            tempq.append(sol1.value(sol.state[i][0][j]))
-            tempdq.append(sol1.value(sol.state[i][1][j]))
-            temp.append([sol1.value(sol.pos[i][j][0]), sol1.value(sol.pos[i][j][1])])
+        for i in range(N):
+            tempq.append(sol1.value(pas.state[i][0][j]))
+            tempdq.append(sol1.value(pas.state[i][1][j]))
+            temp.append([sol1.value(pas.pos[i][j][0]), sol1.value(pas.pos[i][j][1])])
             if j < 4:
-                tempu.append(sol1.value(sol.u[i][0][j]))
+                tempu.append(sol1.value(pas.u[i][0][j]))
             if j<1:
                 p01.append(p)
 
 
-        q.append(tempq);
+        q.append(tempq)
         pos.append(temp)
         dq.append(tempdq)
         u.append(tempu)
-    print(len(pos[4]))
-    print((t+1)*sol.N)
-    print(t)
+
+    # print(len(pos[4]))
+    # print((t+1)*N)
+
     p = [(t+1)*pos[4][-1][0], 0]
-    print(p)
+    #print(p)
 
 
-time = np.arange(0.0, k*sol.T, sol.h)
+time = np.arange(0, k*T, pas.h)
 
-from matplotlib import animation
-from celluloid import Camera
-from matplotlib import pyplot as plt
+
+
 
 fig = plt.figure()
 camera = Camera(fig)
@@ -475,7 +456,7 @@ u31=[]
 u41=[]
 
 for t in range(k):
-    for i in range(sol.N):
+    for i in range(N):
         p11.append([pos[5*t+0][i][0], pos[5*t+0][i][1]])
         p21.append([pos[5*t+1][i][0], pos[5*t+1][i][1]])
         p31.append([pos[5*t+2][i][0], pos[5*t+2][i][1]])
@@ -498,74 +479,133 @@ for t in range(k):
         u21.append(u[5 * t + 1][i])
         u31.append(u[5 * t + 2][i])
         u41.append(u[5 * t + 3][i])
-print(len(p11))
-# print((p11[0]))
-# print(len(p11[0][0]))
-for i in range(k*sol.N):
+
+
+
+for i in range(k*N):
     p0=[p01[i][0], p01[i][1]]
     p1 = [p11[i][0], p11[i][1]]
     p2 = [p21[i][0], p21[i][1]]
     p3 = [p31[i][0], p31[i][1]]
     p4 = [p41[i][0], p41[i][1]]
     p5 = [p51[i][0], p51[i][1]]
-#0.8164595163289858
-    # plt.axes(xlim=(-2, 2), ylim=(-2, 2))
-    plt.axes(xlim=(-2, 2), ylim=(-2, 2))
-    # plt.plot([0,-p1[1]], [0,p1[0]],'r',[-p1[1],-p2[1]], [p1[0],p2[0]],'b',
-    #     [-p2[1],-p3[1]], [p2[0],p3[0]],'c',
-    #     [-p2[1],p4[1] - 2*p2[1]], [p2[0],2*p2[0]-p4[0]],'b',
-    #     [p4[1] - 2*p2[1],p5[1]], [2*p2[0]-p4[0],(p5[0] - 2*p2[0])],'r')
+
+    plt.axes(xlim=(-1, 5), ylim=(-2, 2))
+
     plt.plot([p0[0], p1[0]+p0[0]], [p0[1], p1[1]+p0[1]], 'r', [p1[0]+p0[0], p2[0]+p0[0]], [p1[1]+p0[1], p2[1]+p0[1]], 'b',
              [p2[0]+p0[0], p3[0]+p0[0]], [p2[1]+p0[1], p3[1]+p0[1]], 'c', [p2[0]+p0[0], p4[0]+p0[0]], [p2[1]+p0[1], p4[1]+p0[1]], 'b',
              [p4[0]+p0[0], p5[0]+p0[0]], [p4[1]+p0[1], p5[1]+p0[1]], 'r')
 
-    plt.plot([-2, 10], [0, 0], 'g')
-    # if cv2.waitKey(0) & 0xFF == ord("q"):
-    # #     break
+    plt.plot([-1, 5], [0, 0], 'g')
+
     camera.snap()
-animation = camera.animate(interval=60)
-#animation.save('animation2.mp4')
+animation = camera.animate(interval=30)
+
 plt.show()
 plt.close()
-print(len(q11))
+
+qing=np.zeros((5, k*N))
+dqing=np.zeros((5, k*N))
+uing=np.zeros((4, k*N))
+
+q=np.zeros((5, k*N))
+dq=np.zeros((5, k*N))
+u=np.zeros((4, k*N))
+for t in range(k):
+    for i in range(N):
+        for j in range(5):
+            if (t%2==0):
+                qing[j][t*N+i]=qin[j][i]
+                dqing[j][t * N + i] = dqin[j][i]
+
+            else:
+                qing[4-j][t * N + i] = qin[j][i]
+                dqing[4-j][t * N + i] = dqin[j][i]
+            if j<4:
+                if (t % 2 == 0):
+                    uing[j][t * N + i] = uin[j][i]
+                else:
+                    uing[3-j][t * N + i] = uin[j][i]
+
+
+for t in range(k):
+    for i in range(N):
+        if (t % 2 == 0):
+            q[0][t*N+i]=q11[t*N+i]
+            q[1][t * N + i] = q21[t * N + i]
+            q[2][t * N + i] = q31[t * N + i]
+            q[3][t * N + i] = q41[t * N + i]
+            q[4][t * N + i] = q51[t * N + i]
+
+            dq[0][t * N + i] = dq11[t * N + i]
+            dq[1][t * N + i] = dq21[t * N + i]
+            dq[2][t * N + i] = dq31[t * N + i]
+            dq[3][t * N + i] = dq41[t * N + i]
+            dq[4][t * N + i] = dq51[t * N + i]
+
+            u[0][t * N + i] = u11[t * N + i]
+            u[1][t * N + i] = u21[t * N + i]
+            u[2][t * N + i] = u31[t * N + i]
+            u[3][t * N + i] = u41[t * N + i]
+
+        else:
+            q[0][t * N + i] = q51[t * N + i]
+            q[1][t * N + i] = q41[t * N + i]
+            q[2][t * N + i] = q31[t * N + i]
+            q[3][t * N + i] = q21[t * N + i]
+            q[4][t * N + i] = q11[t * N + i]
+
+            dq[0][t * N + i] = dq41[t * N + i]
+            dq[1][t * N + i] = dq31[t * N + i]
+            dq[2][t * N + i] = dq31[t * N + i]
+            dq[3][t * N + i] = dq21[t * N + i]
+            dq[4][t * N + i] = dq11[t * N + i]
+
+            u[0][t * N + i] = u41[t * N + i]
+            u[1][t * N + i] = u31[t * N + i]
+            u[2][t * N + i] = u21[t * N + i]
+            u[3][t * N + i] = u11[t * N + i]
+
+
 
 name = ['q', 'dq', 'u']
 
 plt.subplot(322)
 plt.title('Optimised Solution')
-plt.plot(time, q11, 'r', time, q21, 'g', time, q31, 'b',
-         time, q41, 'y', time, q51, 'c')
+plt.plot(time, q[0], 'r', time, q[1], 'g', time, q[2], 'b',
+         time, q[3], 'y', time, q[4], 'c')
 
 plt.subplot(321)
 plt.title('Initial Guess')
-iniq1 = solv.qin
-iniq=[iniq1, iniq1, iniq1, iniq1]
-plt.plot(time, iniq[:][0], 'r', time, iniq[:][1], 'g', time, iniq[:][2], 'b',
-         time, iniq[:][3], 'y', time, iniq[:][4], 'c')
+
+
+plt.plot(time, qing[:][0], 'r', time, qing[:][1], 'g', time, qing[:][2], 'b',
+         time, qing[:][3], 'y', time, qing[:][4], 'c')
 plt.ylabel(name[0])
 
 plt.subplot(324)
-plt.plot(time, dq11, 'r', time, dq21, 'g', time, dq31, 'b',
-         time, dq41, 'y', time, dq51, 'c')
+plt.plot(time, dq[0], 'r', time, dq[1], 'g', time, dq[2], 'b',
+         time, dq[3], 'y', time, dq[4], 'c')
 
 plt.subplot(323)
-inidq = solv.dqin
-plt.plot(time, inidq[0][:], 'r', time, inidq[1][:], 'g', time, inidq[2][:], 'b',
-         time, inidq[3][:], 'y', time, inidq[4][:], 'c')
+
+plt.plot(time, dqing[0][:], 'r', time, dqing[1][:], 'g', time, dqing[2][:], 'b',
+         time, dqing[3][:], 'y', time, dqing[4][:], 'c')
 plt.ylabel(name[1])
 
 plt.subplot(326)
-plt.plot(time, u11, 'g', time, u21, 'b', time, u31, 'y',
-         time, u41, 'c')
+plt.plot(time, u[0], 'g', time, u[1], 'b', time, u[2], 'y',
+         time, u[3], 'c')
 
 plt.subplot(325)
-iniu = solv.uin
-plt.plot(time, iniu[:][0], 'r', time, iniu[:][1], 'g', time, iniu[:][2], 'b',
-         time, iniu[:][3], 'y')
+
+plt.plot(time, uing[:][0], 'r', time, uing[:][1], 'g', time, uing[:][2], 'b',
+         time, uing[:][3], 'y')
 plt.ylabel(name[2])
 
 plt.suptitle('Five-Link')
 plt.show()
+
 
 
 
