@@ -43,7 +43,7 @@ class five_link():
         self.dqin=dqin
         self.uin=uin
 
-        self.max_tau= 5
+        self.max_tau= np.inf
         self.max_angle= np.pi
         self.step_max=1
 
@@ -302,6 +302,7 @@ class nlp(five_link):
         qf = (five_link.state[-1][0])
         dqf = (five_link.state[-1][1])
         ceq.extend(self.get_boundary_constrainsts(q0, dq0, five_link.impactmap, five_link))
+        #ceq.extend([(five_link.dp0[4][1] == 0), (five_link.dpN[4][1] == 0)])
 
 
         for i in range(five_link.N):
@@ -374,7 +375,8 @@ class nlp(five_link):
 
 N=100
 T=0.1
-start=[-0.35, 0.65, 0, -0.55, -0.35]#[-0.3, 0.7, 0, -0.5, -0.3]#[-0.35, 0.65, 0, -0.55, -0.35]
+k=10 #steps
+start=[-0.3, 0.7, 0, -0.5, -0.3]#[-0.3, 0.7, 0, -0.5, -0.3]#[-0.35, 0.65, 0, -0.55, -0.35]
 stop=start[::-1]
 
 # Initial guess
@@ -382,10 +384,17 @@ qin = np.zeros((5, N))
 dqin = np.zeros((5, N))
 uin = np.zeros((4, N))
 
+qing=np.zeros((5, k*N))
+dqing=np.zeros((5, k*N))
+uing=np.zeros((4, k*N))
+
 for i in range(5):
     for j in range(N):
         qin[i, j] = (start[i] + (j / (N - 1)) * (stop[i] - start[i]))
         dqin[i, j] = (stop[i] - start[i])/T
+
+        qing[i, j] = (start[i] + (j / (N - 1)) * (stop[i] - start[i]))
+        dqing[i, j] = (stop[i] - start[i]) / T
 
 
 
@@ -393,7 +402,7 @@ q = []
 dq = []
 u = []
 pos = []
-k=4  #steps
+
 p=[0,0]
 p01=[]
 for t in range(k):
@@ -424,6 +433,18 @@ for t in range(k):
         pos.append(temp)
         dq.append(tempdq)
         u.append(tempu)
+
+    for j in range(N):
+        for i in range(5):
+            qin[i, j]= sol1.value(pas.state[j][0][i])
+            dqin[i, j]= sol1.value(pas.state[j][1][i])
+            if t<(k-1):
+                qing[i, (t+1)*N+j] = sol1.value(pas.state[j][0][i])
+                dqing[i, (t+1)*N+j] = sol1.value(pas.state[j][1][i])
+            if i<4:
+                uin[i, j]= sol1.value(pas.u[j][0][i])
+                if t<k-1:
+                    uing[i, (t+1)*N+j] = sol1.value(pas.u[j][0][i])
 
     # print(len(pos[4]))
     # print((t+1)*N)
@@ -499,13 +520,13 @@ for i in range(k*N):
     p4 = [p41[i][0], p41[i][1]]
     p5 = [p51[i][0], p51[i][1]]
 
-    plt.axes(xlim=(-1, 5), ylim=(-2, 2))
+    plt.axes(xlim=(-1, 10), ylim=(-2, 2))
 
     plt.plot([p0[0], p1[0]+p0[0]], [p0[1], p1[1]+p0[1]], 'r', [p1[0]+p0[0], p2[0]+p0[0]], [p1[1]+p0[1], p2[1]+p0[1]], 'b',
              [p2[0]+p0[0], p3[0]+p0[0]], [p2[1]+p0[1], p3[1]+p0[1]], 'c', [p2[0]+p0[0], p4[0]+p0[0]], [p2[1]+p0[1], p4[1]+p0[1]], 'b',
              [p4[0]+p0[0], p5[0]+p0[0]], [p4[1]+p0[1], p5[1]+p0[1]], 'r')
 
-    plt.plot([-1, 5], [0, 0], 'g')
+    plt.plot([-1, 10], [0, 0], 'g')
 
     camera.snap()
 animation = camera.animate(interval=30)
@@ -513,9 +534,9 @@ animation = camera.animate(interval=30)
 plt.show()
 plt.close()
 
-qing=np.zeros((5, k*N))
-dqing=np.zeros((5, k*N))
-uing=np.zeros((4, k*N))
+qing1=np.zeros((5, k*N))
+dqing1=np.zeros((5, k*N))
+uing1=np.zeros((4, k*N))
 
 qing2=np.zeros((5, k*N))
 dqing2=np.zeros((5, k*N))
@@ -528,23 +549,23 @@ for t in range(k):
     for i in range(N):
         for j in range(5):
             if (t%2==0):
-                qing[j][t*N+i]=qin[j][i]
-                dqing[j][t * N + i] = dqin[j][i]
+                qing1[j][t*N+i]=qing[j][t*N+i]
+                dqing1[j][t * N + i] = dqing[j][t * N + i]
 
 
             else:
-                qing[4-j][t * N + i] = qin[j][i]
-                dqing[4-j][t * N + i] = dqin[j][i]
+                qing1[4-j][t * N + i] = qing[j][t*N+i]
+                dqing1[4-j][t * N + i] = dqing[j][t * N + i]
 
-            qing2[j][t * N + i] = qin[j][i]
-            dqing2[j][t * N + i] = dqin[j][i]
+            qing2[j][t * N + i] = qing[j][t * N + i]
+            dqing2[j][t * N + i] = dqing[j][t * N + i]
 
             if j<4:
                 if (t % 2 == 0):
-                    uing[j][t * N + i] = uin[j][i]
+                    uing1[j][t * N + i] = uing[j][t * N + i]
                 else:
-                    uing[3-j][t * N + i] = uin[j][i]
-                uing2[j][t * N + i] = uin[j][i]
+                    uing1[3-j][t * N + i] = uing[j][t * N + i]
+                uing2[j][t * N + i] = uing[j][t * N + i]
 
 
 for t in range(k):
@@ -598,8 +619,8 @@ plt.subplot(321)
 plt.title('Initial Guess')
 
 
-plt.plot(time, qing[0][:], 'r', time, qing[1][:], 'g', time, qing[2][:], 'b',
-         time, qing[3][:], 'y', time, qing[4][:], 'c')
+plt.plot(time, qing1[0][:], 'r', time, qing1[1][:], 'g', time, qing1[2][:], 'b',
+         time, qing1[3][:], 'y', time, qing1[4][:], 'c')
 plt.ylabel(name[0])
 
 plt.subplot(324)
@@ -608,8 +629,8 @@ plt.plot(time, dq[0], 'r', time, dq[1], 'g', time, dq[2], 'b',
 
 plt.subplot(323)
 
-plt.plot(time, dqing[0][:], 'r', time, dqing[1][:], 'g', time, dqing[2][:], 'b',
-         time, dqing[3][:], 'y', time, dqing[4][:], 'c')
+plt.plot(time, dqing1[0][:], 'r', time, dqing1[1][:], 'g', time, dqing1[2][:], 'b',
+         time, dqing1[3][:], 'y', time, dqing1[4][:], 'c')
 plt.ylabel(name[1])
 
 plt.subplot(326)
@@ -618,13 +639,17 @@ plt.plot(time, u[0], 'g', time, u[1], 'b', time, u[2], 'y',
 
 plt.subplot(325)
 
-plt.plot(time, uing[0][:], 'r', time, uing[1][:], 'g', time, uing[2][:], 'b',
-         time, uing[3][:], 'y')
+plt.plot(time, uing1[0][:], 'g', time, uing1[1][:], 'b', time, uing1[2][:], 'y',
+         time, uing1[3][:], 'c')
 plt.ylabel(name[2])
 
 plt.suptitle('Five-Link')
 plt.show()
-
+print(u)
+print(max(u))
+print(max(max(u.all())))
+print(max(max(max(u.all()))))
+print(max(max(max(max(u.all())))))
 
 
 
@@ -664,14 +689,14 @@ plt.plot(time, u11, 'g', time, u21, 'b', time, u31, 'y',
 
 plt.subplot(325)
 
-plt.plot(time, uing2[0][:], 'r', time, uing2[1][:], 'g', time, uing2[2][:], 'b',
-         time, uing2[3][:], 'y')
+plt.plot(time, uing2[0][:], 'g', time, uing2[1][:], 'b', time, uing2[2][:], 'y',
+         time, uing2[3][:], 'c')
 plt.ylabel(name[2])
 
 plt.suptitle('Five-Link')
 plt.show()
 
-print(u)
+
 
 
 
